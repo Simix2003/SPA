@@ -25,7 +25,7 @@ struct ContentView: View {
         // ⬇️ attach the sheet here, not on Tab
         .sheet(isPresented: $showingSheet) {
             AddSheetView(onClose: { showingSheet = false })
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
     }

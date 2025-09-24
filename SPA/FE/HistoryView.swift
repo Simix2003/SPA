@@ -159,6 +159,7 @@ struct HistoryView: View {
                     s.project = existing
                 } else {
                     let p = Project(name: name)
+                    p.updatedAt = Date()
                     context.insert(p)
                     try context.save()
                     s.project = p
@@ -181,6 +182,8 @@ struct HistoryView: View {
             s.updatedAt = Date()
 
             try context.save()
+            // Mirror to CloudKit (Phase 1: create/update only)
+            Task { await CloudKitSyncEngine.shared.pushAll(context: context) }
             showEdit = false
         } catch {
             errorMessage = "Impossibile salvare le modifiche: \(error.localizedDescription)"
@@ -188,9 +191,12 @@ struct HistoryView: View {
     }
 
     private func deleteSession(_ s: WorkSession) {
+        let deletedID = s.id
         withAnimation {
             context.delete(s)
-            do { try context.save() }
+            do { try context.save()
+                Task { await CloudKitSyncEngine.shared.deleteWorkSessions(ids: [deletedID]) }
+            }
             catch { errorMessage = "Eliminazione non riuscita: \(error.localizedDescription)" }
         }
     }

@@ -23,6 +23,7 @@ private struct BootstrapSync: View {
     var body: some View {
         Color.clear
             .task {
+                CloudKitSyncEngine.shared.prepareForFirstRun()
                 // If you haven't added CloudKitSyncEngine yet, comment this out for now.
                 await CloudKitSyncEngine.shared.pullAll(context: context)
             }

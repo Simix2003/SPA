@@ -12,10 +12,13 @@ import Foundation
 enum WorkSessionError: Error, LocalizedError {
     case overlapDetected
     case noOpenSession
+    
     var errorDescription: String? {
         switch self {
-        case .overlapDetected: return "L'intervallo selezionato si sovrappone a un'altra sessione."
-        case .noOpenSession:   return "Nessuna sessione aperta da chiudere."
+        case .overlapDetected:
+            return "L'intervallo selezionato si sovrappone a un'altra sessione."
+        case .noOpenSession:
+            return "Nessuna sessione aperta da chiudere."
         }
     }
 }
@@ -116,14 +119,34 @@ final class WorkSessionStore {
     
     // MARK: - Overlap protection
     private func ensureNoOverlap(start: Date, end: Date, excluding id: UUID?) throws {
-        let pred = #Predicate<WorkSession> { s in
-            s.end != nil &&
-            start < s.end! && end > s.start &&
-            (id == nil || s.id != id!)
+        // Build a SwiftData-compatible predicate without forced unwraps.
+        // We pre-filter to sessions that are CLOSED (end != nil) and that could possibly overlap
+        // by starting before the candidate `end`. We avoid using `s.end!` in the predicate.
+        let fetchDescriptor: FetchDescriptor<WorkSession>
+        if let excludeID = id {
+            let pred = #Predicate<WorkSession> { s in
+                s.end != nil &&
+                s.start < end &&
+                s.id != excludeID
+            }
+            fetchDescriptor = FetchDescriptor(predicate: pred)
+        } else {
+            let pred = #Predicate<WorkSession> { s in
+                s.end != nil &&
+                s.start < end
+            }
+            fetchDescriptor = FetchDescriptor(predicate: pred)
         }
-        let d = FetchDescriptor<WorkSession>(predicate: pred)
-        let hits = try context.fetch(d)
-        if !hits.isEmpty { throw WorkSessionError.overlapDetected }
+
+        let candidates = try context.fetch(fetchDescriptor)
+
+        // Final precise overlap test in memory (safe to unwrap here because we filtered end != nil)
+        let hits = candidates.contains { other in
+            guard let otherEnd = other.end else { return false }
+            // Overlap if (start < otherEnd) && (end > other.start)
+            return start < otherEnd && end > other.start
+        }
+        if hits { throw WorkSessionError.overlapDetected }
     }
 }
 

@@ -17,6 +17,15 @@ import Foundation
 import CloudKit
 import SwiftData
 
+// Purge legacy UserDefaults entries that may contain old NSKeyedArchiver payloads
+fileprivate func purgeLegacyCloudKitTokensFromDefaults() {
+    let defaults = UserDefaults.standard
+    let keys = defaults.dictionaryRepresentation().keys
+    for key in keys where key.hasPrefix("CKServerChangeToken_") || key.hasPrefix("CloudKitToken_") {
+        defaults.removeObject(forKey: key)
+    }
+}
+
 // MARK: - CloudKit constants
 
 enum CKSchema {
@@ -179,25 +188,54 @@ private func upsertWorkSession(_ rec: CKRecord, into context: ModelContext) thro
 final class CloudKitSyncEngine {
     static let shared = CloudKitSyncEngine()
     private init() {}
+    
+    func prepareForFirstRun() {
+        purgeLegacyCloudKitTokensFromDefaults()
+    }
 
-    // Push all local Projects and WorkSessions (idempotent upsert)
+    // MARK: - Remote delete helpers (Phase 1)
+    /// Delete remote WorkSession records matching the given UUIDs.
+    func deleteWorkSessions(ids: [UUID]) async {
+        guard !ids.isEmpty else { return }
+        let recordIDs = ids.map { CKRecord.ID(recordName: "\(CKSchema.RecordType.workSession)_\($0.uuidString)") }
+        do {
+            _ = try await CKSchema.privateDB.modifyRecords(
+                saving: [],
+                deleting: recordIDs,
+                savePolicy: .ifServerRecordUnchanged,
+                atomically: false
+            )
+        } catch {
+            print("CK delete WorkSessions error:", error)
+        }
+    }
+
+    /// Delete remote Project records matching the given UUIDs.
+    /// Use carefully (only when a project is truly removed).
+    func deleteProjects(ids: [UUID]) async {
+        guard !ids.isEmpty else { return }
+        let recordIDs = ids.map { CKRecord.ID(recordName: "\(CKSchema.RecordType.project)_\($0.uuidString)") }
+        do {
+            _ = try await CKSchema.privateDB.modifyRecords(
+                saving: [],
+                deleting: recordIDs,
+                savePolicy: .ifServerRecordUnchanged,
+                atomically: false
+            )
+        } catch {
+            print("CK delete Projects error:", error)
+        }
+    }
+
+    // MARK: - Push helpers
+    
     func pushAll(context: ModelContext) async {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.pushProjects(context: context) }
             group.addTask { await self.pushWorkSessions(context: context) }
         }
     }
-
-    // Pull all changes since last token and upsert locally
-    func pullAll(context: ModelContext) async {
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { await self.pull(type: CKSchema.RecordType.project, upsert: { try upsertProject($0, into: context) }) }
-            group.addTask { await self.pull(type: CKSchema.RecordType.workSession, upsert: { try upsertWorkSession($0, into: context) }) }
-        }
-    }
-
-    // MARK: - Push helpers
-
+    
     private func pushProjects(context: ModelContext) async {
         do {
             let projects = try context.fetch(FetchDescriptor<Project>())
@@ -225,7 +263,15 @@ final class CloudKitSyncEngine {
     }
 
     // MARK: - Pull helpers
-
+    
+    /// Pull all records from CloudKit into the local store (Development env)
+    func pullAll(context: ModelContext) async {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await self.pull(type: CKSchema.RecordType.project, upsert: { try upsertProject($0, into: context) }) }
+            group.addTask { await self.pull(type: CKSchema.RecordType.workSession, upsert: { try upsertWorkSession($0, into: context) }) }
+        }
+    }
+    
     private func pull(type: String, upsert: @escaping (CKRecord) throws -> Void) async {
         var cursor: CKQueryOperation.Cursor? = nil
         do {
@@ -240,6 +286,7 @@ final class CloudKitSyncEngine {
                     cursor = next
                 } else {
                     let q = CKQuery(recordType: type, predicate: NSPredicate(value: true))
+                    q.sortDescriptors = [NSSortDescriptor(key: "modificationDate", ascending: true)]
                     let (match, next) = try await CKSchema.privateDB.records(matching: q, inZoneWith: nil, desiredKeys: nil, resultsLimit: CKQueryOperation.maximumResults)
                     for (_, result) in match {
                         if case let .success(rec) = result {
@@ -249,6 +296,11 @@ final class CloudKitSyncEngine {
                     cursor = next
                 }
             } while cursor != nil
+        } catch let ckErr as CKError {
+            // First-run cases while schema/indexes are not yet present.
+            if ckErr.code == .unknownItem { return }          // Record type doesn't exist yet; first push will create it
+            if ckErr.code == .invalidArguments { return }      // e.g., 'recordName' not queryable until you enable it in Dashboard
+            print("CK pull \(type) error:", ckErr)
         } catch {
             print("CK pull \(type) error:", error)
         }
