@@ -13,6 +13,9 @@ struct AddSheetView: View {
     @State private var selected: Tab = .hours
     @Environment(\.modelContext) private var context
     @State private var hours = HoursInput()
+    @State private var hasOpenSession = false
+    @State private var currentOpenProjectName: String? = nil
+    @State private var errorMessage: String?
     let onClose: () -> Void
 
     var body: some View {
@@ -24,11 +27,39 @@ struct AddSheetView: View {
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
+            .onAppear { refreshOpenSessionContext() }
 
             Group {
                 switch selected {
                 case .hours:
-                    HoursForm(data: $hours)
+                    HoursForm(
+                        data: $hours,
+                        hasOpenSession: hasOpenSession,
+                        currentOpenProjectName: currentOpenProjectName,
+                        onSwitchRequested: {
+                            do {
+                                let store = WorkSessionStore(context)
+                                // Resolve or create Project from typed name (optional)
+                                var target: Project?
+                                let name = hours.projectName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !name.isEmpty {
+                                    let fd = FetchDescriptor<Project>(predicate: #Predicate { $0.name == name })
+                                    if let existing = try? context.fetch(fd).first {
+                                        target = existing
+                                    } else {
+                                        let p = Project(name: name)
+                                        context.insert(p)
+                                        try context.save()
+                                        target = p
+                                    }
+                                }
+                                _ = try store.switchOpenSession(to: target, rounding: hours.rounding, at: Date())
+                                onClose()
+                            } catch {
+                                errorMessage = "Switch non riuscito: \(error.localizedDescription)"
+                            }
+                        }
+                    )
                 case .expenses:
                     ExpensesForm { input in
                         // TODO: persist with SwiftData when Expense model is ready
@@ -46,6 +77,10 @@ struct AddSheetView: View {
                 Button("Salva") {
                     switch selected {
                     case .hours:
+                        if hours.hasEnd && hours.end < hours.start {
+                            errorMessage = "L'orario di fine non può precedere l'inizio."
+                            return
+                        }
                         do {
                             let store = WorkSessionStore(context)
                             // Resolve or create Project from typed name (optional)
@@ -91,6 +126,22 @@ struct AddSheetView: View {
                 .buttonStyle(.borderedProminent)
             }
             .padding()
+            .alert("Errore", isPresented: .constant(errorMessage != nil)) {
+                Button("OK", role: .cancel) { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "")
+            }
+        }
+    }
+
+    private func refreshOpenSessionContext() {
+        let store = WorkSessionStore(context)
+        if let open = try? store.currentOpenSession() {
+            hasOpenSession = true
+            currentOpenProjectName = open.project?.name
+        } else {
+            hasOpenSession = false
+            currentOpenProjectName = nil
         }
     }
 }

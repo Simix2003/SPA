@@ -1,8 +1,25 @@
 import SwiftUI
+
+// MARK: - SessionType (Tipo)
+enum SessionType: String, Codable, CaseIterable, Identifiable {
+    case ferie = "Ferie"
+    case intervento = "Intervento"
+    case malattia = "Malattia"
+    case permesso = "Permesso"
+    case permessoNonRetribuito = "Permesso non Retribuito"
+    case trasferta = "Trasferta"
+    case ufficio = "Ufficio"
+    case viaggio = "Viaggio"
+    case viaggioTrasferta = "Viaggio + Trasferta"
+
+    var id: String { rawValue }
+    var displayName: String { rawValue }
+}
 // MARK : HoursInput
 
 struct HoursInput {
     var projectName: String = ""
+    var type: SessionType = .ufficio
     var start: Date = .init()
     var end: Date = .init()
     var hasEnd: Bool = true
@@ -14,10 +31,17 @@ struct HoursInput {
 // MARK: - HoursForm
 struct HoursForm: View {
     @Binding var data: HoursInput
+    // Optional context provided by the parent (e.g., AddSheetView)
+    var hasOpenSession: Bool = false
+    var currentOpenProjectName: String? = nil
+    var onSwitchRequested: (() -> Void)? = nil
 
     @FocusState private var focusedField: Field?
     private enum Field: Hashable {
         case project, note
+    }
+    private var sortedTypes: [SessionType] {
+        SessionType.allCases.sorted { $0.displayName.localizedCompare($1.displayName) == .orderedAscending }
     }
 
     var body: some View {
@@ -32,6 +56,33 @@ struct HoursForm: View {
                         .textFieldStyle(.plain)
                         .focused($focusedField, equals: .project)
                         .padding(.vertical, 8)
+                }
+                // Quick action if there's an open session (to support multi-commesse workflows)
+                if hasOpenSession {
+                    GroupBox("Sessione aperta") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("C'è una sessione attiva\(currentOpenProjectName != nil ? " per \(currentOpenProjectName!)" : "")")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                            Button {
+                                onSwitchRequested?()
+                            } label: {
+                                let target = data.projectName.isEmpty ? "nuova commessa" : data.projectName
+                                Label("Chiudi e passa a \(target)", systemImage: "arrow.triangle.2.circlepath")
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                // Tipo
+                GroupBox("Tipo") {
+                    Picker("Tipo", selection: $data.type) {
+                        ForEach(sortedTypes) { t in
+                            Text(t.displayName).tag(t)
+                        }
+                    }
+                    .pickerStyle(.menu) // menu works well inside sheets; change to .segmented if you prefer and reduce options
                 }
                 // Orari
                 GroupBox("Orari") {

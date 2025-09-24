@@ -9,6 +9,17 @@
 import SwiftData
 import Foundation
 
+enum WorkSessionError: Error, LocalizedError {
+    case overlapDetected
+    case noOpenSession
+    var errorDescription: String? {
+        switch self {
+        case .overlapDetected: return "L'intervallo selezionato si sovrappone a un'altra sessione."
+        case .noOpenSession:   return "Nessuna sessione aperta da chiudere."
+        }
+    }
+}
+
 final class WorkSessionStore {
     private let context: ModelContext
     init(_ context: ModelContext) { self.context = context }
@@ -39,6 +50,7 @@ final class WorkSessionStore {
     
     @discardableResult
     func createClosedSession(start: Date, end: Date, breakMinutes: Int, project: Project?, note: String?, rounding: RoundingRule) throws -> WorkSession {
+        try ensureNoOverlap(start: start, end: end, excluding: nil)
         let s = WorkSession(start: start, project: project, rounding: rounding)
         s.end = end
         s.breakMinutes = max(0, breakMinutes)
@@ -50,9 +62,10 @@ final class WorkSessionStore {
         return s
     }
 
-    func stopSession(_ session: WorkSession, breakMinutes: Int = 0) throws {
-        guard session.state == .open else { return }
-        session.end = Date()
+    func stopSession(_ session: WorkSession, breakMinutes: Int = 0, at endDate: Date = Date()) throws {
+        guard session.end == nil else { return }
+        try ensureNoOverlap(start: session.start, end: endDate, excluding: session.id)
+        session.end = endDate
         session.breakMinutes = max(0, breakMinutes)
         session.state = .closed
         session.updatedAt = Date()
@@ -64,6 +77,14 @@ final class WorkSessionStore {
             context.delete(open)
             try context.save()
         }
+    }
+
+    @discardableResult
+    func switchOpenSession(to project: Project?, rounding: RoundingRule, at date: Date = Date()) throws -> WorkSession {
+        if let open = try currentOpenSession() {
+            try stopSession(open, at: date)
+        }
+        return try startSession(at: date, project: project, rounding: rounding)
     }
 
     // Queries
@@ -92,9 +113,19 @@ final class WorkSessionStore {
             return acc + payableMinutes(start: s.start, end: end, breakMin: s.breakMinutes, rule: s.rounding)
         }
     }
+    
+    // MARK: - Overlap protection
+    private func ensureNoOverlap(start: Date, end: Date, excluding id: UUID?) throws {
+        let pred = #Predicate<WorkSession> { s in
+            s.end != nil &&
+            start < s.end! && end > s.start &&
+            (id == nil || s.id != id!)
+        }
+        let d = FetchDescriptor<WorkSession>(predicate: pred)
+        let hits = try context.fetch(d)
+        if !hits.isEmpty { throw WorkSessionError.overlapDetected }
+    }
 }
-
-import Foundation
 
 fileprivate func rounded(_ date: Date, rule: RoundingRule) -> Date {
     switch rule {
