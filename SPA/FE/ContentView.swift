@@ -1,29 +1,46 @@
 import SwiftUI
 
+enum MainTab: Hashable {
+    case home, history, new
+}
+
 struct ContentView: View {
+    @State private var selected: MainTab = .home
+    @State private var lastNonNew: MainTab = .home
     @State private var showingSheet = false
 
     var body: some View {
-        ZStack {
-            TabView {
-                Tab("Home", systemImage: "house") {
-                    HomeView()
-                }
+        TabView(selection: $selected) {
+            Tab(value: .home) {
+                HomeView()
+                } label: {
+                    Label("Home", systemImage: "house")
+            }
 
-                Tab("Storico", systemImage: "memories") {
-                    HistoryView()
-                }
+                    Tab(value: .history) {
+                        HistoryView()
+                    } label: {
+                        Label("Storico", systemImage: "clock.arrow.circlepath")
+                    }
 
-                Tab("New", systemImage: "plus", role: .search) {
-                    Color.clear
-                        .onAppear {
-                            showingSheet = true
-                        }
-                }
+            Tab(value: .new, role: .search) {
+                        Color.clear // or your AddSheet
+                    } label: {
+                        Label("New", systemImage: "plus")
+                    }
+        }
+        .onChange(of: selected) { oldValue, newValue in
+            if newValue == .new {
+                showingSheet = true
+                // immediately bounce back to the previous real tab
+                selected = lastNonNew
+            } else {
+                lastNonNew = newValue
             }
         }
-        // ⬇️ attach the sheet here, not on Tab
         .sheet(isPresented: $showingSheet) {
+            // If AddSheetView already contains a NavigationStack, present it directly.
+            // If it doesn't, wrap it in NavigationStack here.
             AddSheetView(onClose: { showingSheet = false })
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)

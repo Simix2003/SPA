@@ -128,6 +128,7 @@ struct HoursForm: View {
                     .focused($focusedField, equals: .note)
             }
         }
+        .padding(.top, 60)
         .scrollDismissesKeyboard(.interactively)
     }
 

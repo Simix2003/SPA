@@ -31,105 +31,85 @@ struct AddSheetView: View {
             }
             .onAppear { refreshOpenSessionContext() }
 
-            Group {
-                switch selected {
-                case .hours:
-                    HoursForm(
-                        data: $hours,
-                        hasOpenSession: hasOpenSession,
-                        currentOpenProjectName: currentOpenProjectName,
-                        onSwitchRequested: {
-                            do {
-                                let store = WorkSessionStore(context)
-                                // Resolve or create Project from typed name (optional)
-                                var target: Project?
-                                let name = hours.projectName.trimmingCharacters(in: .whitespacesAndNewlines)
-                                if !name.isEmpty {
-                                    let fd = FetchDescriptor<Project>(predicate: #Predicate { $0.name == name })
-                                    if let existing = try? context.fetch(fd).first {
-                                        target = existing
-                                    } else {
-                                        let p = Project(name: name)
-                                        context.insert(p)
-                                        try context.save()
-                                        target = p
-                                    }
+            TabView(selection: $selected) {
+                // Tab 1: Ore
+                HoursForm(
+                    data: $hours,
+                    hasOpenSession: hasOpenSession,
+                    currentOpenProjectName: currentOpenProjectName,
+                    onSwitchRequested: {
+                        do {
+                            let store = WorkSessionStore(context)
+                            var target: Project?
+                            let name = hours.projectName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !name.isEmpty {
+                                let fd = FetchDescriptor<Project>(predicate: #Predicate { $0.name == name })
+                                if let existing = try? context.fetch(fd).first {
+                                    target = existing
+                                } else {
+                                    let p = Project(name: name)
+                                    context.insert(p)
+                                    try context.save()
+                                    target = p
                                 }
-                                _ = try store.switchOpenSession(to: target, rounding: hours.rounding, at: Date())
-                                // CloudKit push after switch
-                                Task { await CloudKitSyncEngine.shared.pushAll(context: context) }
-                                dismissKeyboard()
-                                onClose()
-                            } catch let ws as WorkSessionError {
-                                switch ws {
-                                case .overlapDetected:
-                                    errorMessage = "Non posso chiudere: l'intervallo si sovrappone a un'altra sessione."
-                                case .noOpenSession:
-                                    errorMessage = "Nessuna sessione aperta da chiudere."
-                                }
-                            } catch {
-                                let ns = error as NSError
-                                print("[Switch] error:", ns)
-                                errorMessage = "Switch non riuscito (\(ns.domain) \(ns.code))\n\(ns.localizedDescription)\n\(ns.userInfo)"
                             }
+                            _ = try store.switchOpenSession(to: target, rounding: hours.rounding, at: Date())
+                            Task { await CloudKitSyncEngine.shared.pushAll(context: context) }
+                            dismissKeyboard()
+                            onClose()
+                        } catch let ws as WorkSessionError {
+                            switch ws {
+                            case .overlapDetected:
+                                errorMessage = "Non posso chiudere: l'intervallo si sovrappone a un'altra sessione."
+                            case .noOpenSession:
+                                errorMessage = "Nessuna sessione aperta da chiudere."
+                            }
+                        } catch {
+                            let ns = error as NSError
+                            print("[Switch] error:", ns)
+                            errorMessage = "Switch non riuscito (\(ns.domain) \(ns.code))\n\(ns.localizedDescription)\n\(ns.userInfo)"
                         }
-                    )
-                case .expenses:
-                    ExpensesForm { input in
-                        // TODO: persist with SwiftData when Expense model is ready
-                        // e.g., create Expense from `input` and save.
-                        onClose()
                     }
+                )
+                .tabItem { Label("Ore", systemImage: "clock") }
+                .tag(Tab.hours)
+                
+                // Tab 2: Spese
+                ExpensesForm { input in
+                    // TODO: persist with SwiftData when Expense model is ready
+                    onClose()
                 }
+                .tabItem { Label("Spese", systemImage: "creditcard") }
+                .tag(Tab.expenses)
             }
 
         }
-        // Bottom inset: tab selector (Ore / Spese)
-        .safeAreaInset(edge: .bottom) {
+        .navigationTitle(selected == .hours ? "Registra ore" : "Spese")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
+        .toolbar(.visible, for: .tabBar)
+        .toolbarBackground(.regularMaterial, for: .tabBar)
+        .safeAreaInset(edge: .top) {
             HStack {
-                Picker("", selection: $selected) {
-                    ForEach(Tab.allCases) { t in
-                        Text(t.rawValue).tag(t)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 220)
                 Spacer()
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(.regularMaterial)
-        }
-        // Top toolbar with circular X (left) and checkmark (right)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button {
-                    dismissKeyboard(); onClose()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .imageScale(.large)
-                        .symbolRenderingMode(.hierarchical)
-                }
-                .tint(.secondary)
-            }
-            ToolbarItem(placement: .confirmationAction) {
+
                 Button {
                     handleSave()
                 } label: {
-                    Image(systemName: "checkmark.circle.fill")
-                        .imageScale(.large)
-                        .symbolRenderingMode(.palette)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 24, weight: .semibold))
+                        .padding(14)
                 }
-                .tint(.blue)
+                .glassEffect(.regular.tint(.blue), in: Circle())
+                .foregroundStyle(.white)
+                .buttonBorderShape(.circle)
+                .scrollEdgeEffectStyle(.hard, for: .top)
+                .accessibilityLabel("Salva")
             }
-        }
-        .navigationTitle(selected == .hours ? "Registra ore" : "Spese")
-        .navigationBarTitleDisplayMode(.inline)
-        .alert("Errore", isPresented: .constant(errorMessage != nil)) {
-            Button("OK", role: .cancel) { errorMessage = nil }
-        } message: {
-            Text(errorMessage ?? "")
-        }
+            .padding(.horizontal)
+            .padding(.vertical, 10)
+            .background(.regularMaterial)
+          }
     }
 
     private func refreshOpenSessionContext() {

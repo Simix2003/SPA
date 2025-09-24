@@ -44,7 +44,7 @@ struct HistoryView: View {
                     Menu {
                         Button("Tutte le commesse") { selectedProject = nil }
                         Divider()
-                        ForEach(projects) { p in
+                        ForEach(filterableProjects) { p in
                             Button(p.name) { selectedProject = p }
                         }
                     } label: {
@@ -126,6 +126,18 @@ struct HistoryView: View {
     private var sortedSectionKeys: [Date] {
         groupedSessions.keys.sorted(by: >)
     }
+    
+    private var filterableProjects: [Project] {
+        // Only show projects that actually have sessions in the current filtered range
+        let items = filteredSessions.compactMap { $0.project }
+        var unique: [Project] = []
+        for p in items {
+            if !unique.contains(where: { $0.id == p.id }) {
+                unique.append(p)
+            }
+        }
+        return unique.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
 
     // MARK: - Actions
     private func beginEdit(_ s: WorkSession) {
@@ -195,6 +207,9 @@ struct HistoryView: View {
         withAnimation {
             context.delete(s)
             do { try context.save()
+                if let sel = selectedProject, !filterableProjects.contains(where: { $0.id == sel.id }) {
+                    selectedProject = nil
+                }
                 Task { await CloudKitSyncEngine.shared.deleteWorkSessions(ids: [deletedID]) }
             }
             catch { errorMessage = "Eliminazione non riuscita: \(error.localizedDescription)" }
@@ -320,40 +335,23 @@ private struct EditSessionSheet: View {
                         Text("Pausa: \(data.breakMin) min")
                     }
                 }
-
-                Section("Arrotondamento") {
-                    Picker("Regola", selection: $data.rounding) {
-                        ForEach(RoundingRule.allCases, id: \.self) { r in
-                            Text(ruleLabel(r)).tag(r)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-
-                Section("Note") {
-                    TextField("Aggiungi nota", text: $data.note, axis: .vertical)
-                        .lineLimit(1...3)
-                }
             }
             .navigationTitle("Modifica")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Annulla", action: onCancel)
-                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Salva") { onSave(data) }
+                    Button {
+                        onSave(data)
+                    } label: {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 18, weight: .semibold))
+                            .padding(8)
+                    }
+                    .foregroundStyle(.white) // checkmark stays white
+                    .glassEffect(.clear.tint(.blue)) // button glass tinted blue
+                    .accessibilityLabel("Salva")
                 }
             }
-        }
-    }
-
-    private func ruleLabel(_ r: RoundingRule) -> String {
-        switch r {
-        case .off: return "Off"
-        case .nearest5: return "5'"
-        case .nearest15: return "15'"
-        case .nearest30: return "30'"
         }
     }
 }

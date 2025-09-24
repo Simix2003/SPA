@@ -43,7 +43,7 @@ struct ExpensesForm: View {
             Section("Commessa (opzionale)") {
                 TextField("Cliente/Commessa", text: $projectName)
                     .textInputAutocapitalization(.words)
-            }
+            }.padding(.top, 60)
 
             Section("Dettagli spesa") {
                 HStack {
@@ -52,7 +52,7 @@ struct ExpensesForm: View {
                     TextField("0,00", text: $amountText)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
-                        .onChange(of: amountText) { _ in validateAmount() }
+                        .onChange(of: amountText) { _, _ in validateAmount() }
                         .frame(maxWidth: 160)
                 }
 
