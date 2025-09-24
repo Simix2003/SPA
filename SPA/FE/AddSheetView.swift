@@ -54,6 +54,8 @@ struct AddSheetView: View {
                                     }
                                 }
                                 _ = try store.switchOpenSession(to: target, rounding: hours.rounding, at: Date())
+                                // CloudKit push after switch
+                                Task { await CloudKitSyncEngine.shared.pushAll(context: context) }
                                 onClose()
                             } catch {
                                 errorMessage = "Switch non riuscito: \(error.localizedDescription)"
@@ -107,16 +109,17 @@ struct AddSheetView: View {
                                     note: hours.note.isEmpty ? nil : hours.note,
                                     rounding: hours.rounding
                                 )
+                                Task { await CloudKitSyncEngine.shared.pushAll(context: context) }
                             } else {
                                 var s = try store.startSession(at: hours.start, project: project, rounding: hours.rounding)
                                 s.note = hours.note.isEmpty ? nil : hours.note
                                 s.breakMinutes = max(0, hours.breakMin)
                                 try context.save()
+                                Task { await CloudKitSyncEngine.shared.pushAll(context: context) }
                             }
                             onClose()
                         } catch {
-                            // TODO: present an alert if you want
-                            print("Save error: \(error)")
+                            errorMessage = "Salvataggio non riuscito: \(error.localizedDescription)"
                         }
                     case .expenses:
                         // handled by ExpensesForm's onSubmit closure

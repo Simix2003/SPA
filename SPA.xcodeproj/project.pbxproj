@@ -7,21 +7,21 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		73A560F32E7F7C35003AD400 /* Test.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Test.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		73A560F32E7F7C35003AD400 /* SPA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SPA.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		73B2223F2E83590F00F07C9A /* Exceptions for "Test" folder in "Test" target */ = {
+		73B2223F2E83590F00F07C9A /* Exceptions for "SPA" folder in "SPA" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				BE/RoundingHelper.swift,
 			);
-			target = 73A560F22E7F7C35003AD400 /* Test */;
+			target = 73A560F22E7F7C35003AD400 /* SPA */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		73B222402E83590F00F07C9A /* Exceptions for "Test" folder in "Copy Bundle Resources" phase from "Test" target */ = {
+		73B222402E83590F00F07C9A /* Exceptions for "SPA" folder in "Copy Bundle Resources" phase from "SPA" target */ = {
 			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
 			buildPhase = 73A560F12E7F7C35003AD400 /* Resources */;
 			membershipExceptions = (
@@ -31,13 +31,13 @@
 /* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		73A560F52E7F7C35003AD400 /* Test */ = {
+		73A560F52E7F7C35003AD400 /* SPA */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				73B2223F2E83590F00F07C9A /* Exceptions for "Test" folder in "Test" target */,
-				73B222402E83590F00F07C9A /* Exceptions for "Test" folder in "Copy Bundle Resources" phase from "Test" target */,
+				73B2223F2E83590F00F07C9A /* Exceptions for "SPA" folder in "SPA" target */,
+				73B222402E83590F00F07C9A /* Exceptions for "SPA" folder in "Copy Bundle Resources" phase from "SPA" target */,
 			);
-			path = Test;
+			path = SPA;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -56,7 +56,7 @@
 		73A560EA2E7F7C35003AD400 = {
 			isa = PBXGroup;
 			children = (
-				73A560F52E7F7C35003AD400 /* Test */,
+				73A560F52E7F7C35003AD400 /* SPA */,
 				73A560F42E7F7C35003AD400 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -64,7 +64,7 @@
 		73A560F42E7F7C35003AD400 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				73A560F32E7F7C35003AD400 /* Test.app */,
+				73A560F32E7F7C35003AD400 /* SPA.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -72,9 +72,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		73A560F22E7F7C35003AD400 /* Test */ = {
+		73A560F22E7F7C35003AD400 /* SPA */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 73A561032E7F7C37003AD400 /* Build configuration list for PBXNativeTarget "Test" */;
+			buildConfigurationList = 73A561032E7F7C37003AD400 /* Build configuration list for PBXNativeTarget "SPA" */;
 			buildPhases = (
 				73A560EF2E7F7C35003AD400 /* Sources */,
 				73A560F02E7F7C35003AD400 /* Frameworks */,
@@ -85,13 +85,13 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				73A560F52E7F7C35003AD400 /* Test */,
+				73A560F52E7F7C35003AD400 /* SPA */,
 			);
-			name = Test;
+			name = SPA;
 			packageProductDependencies = (
 			);
 			productName = Test;
-			productReference = 73A560F32E7F7C35003AD400 /* Test.app */;
+			productReference = 73A560F32E7F7C35003AD400 /* SPA.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -109,7 +109,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 73A560EE2E7F7C35003AD400 /* Build configuration list for PBXProject "Test" */;
+			buildConfigurationList = 73A560EE2E7F7C35003AD400 /* Build configuration list for PBXProject "SPA" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -123,7 +123,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				73A560F22E7F7C35003AD400 /* Test */,
+				73A560F22E7F7C35003AD400 /* SPA */,
 			);
 		};
 /* End PBXProject section */
@@ -368,7 +368,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		73A560EE2E7F7C35003AD400 /* Build configuration list for PBXProject "Test" */ = {
+		73A560EE2E7F7C35003AD400 /* Build configuration list for PBXProject "SPA" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				73A561012E7F7C37003AD400 /* Debug */,
@@ -377,7 +377,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		73A561032E7F7C37003AD400 /* Build configuration list for PBXNativeTarget "Test" */ = {
+		73A561032E7F7C37003AD400 /* Build configuration list for PBXNativeTarget "SPA" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				73A561042E7F7C37003AD400 /* Debug */,

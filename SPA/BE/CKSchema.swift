@@ -1,4 +1,11 @@
 //
+//  CKSchema.swift
+//  SPA
+//
+//  Created by Simone Paparo on 24/09/25.
+//
+
+//
 //  CloudKitSync.swift
 //  Test
 //
@@ -167,26 +174,6 @@ private func upsertWorkSession(_ rec: CKRecord, into context: ModelContext) thro
     try context.save()
 }
 
-// MARK: - Change tokens
-
-private enum CKTokenKey: String {
-    case project, workSession
-    var defaultsKey: String { "CKServerChangeToken_\(rawValue)" }
-}
-
-private func loadToken(_ key: CKTokenKey) -> CKServerChangeToken? {
-    guard let data = UserDefaults.standard.data(forKey: key.defaultsKey) else { return nil }
-    return try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKServerChangeToken.self, from: data)
-}
-private func saveToken(_ token: CKServerChangeToken?, for key: CKTokenKey) {
-    guard let token else {
-        UserDefaults.standard.removeObject(forKey: key.defaultsKey); return
-    }
-    if let data = try? NSKeyedArchiver.archivedData(withRootObject: token, requiringSecureCoding: true) {
-        UserDefaults.standard.set(data, forKey: key.defaultsKey)
-    }
-}
-
 // MARK: - Sync engine
 
 final class CloudKitSyncEngine {
@@ -204,8 +191,8 @@ final class CloudKitSyncEngine {
     // Pull all changes since last token and upsert locally
     func pullAll(context: ModelContext) async {
         await withTaskGroup(of: Void.self) { group in
-            group.addTask { await self.pull(type: CKSchema.RecordType.project, tokenKey: .project, upsert: { try upsertProject($0, into: context) }) }
-            group.addTask { await self.pull(type: CKSchema.RecordType.workSession, tokenKey: .workSession, upsert: { try upsertWorkSession($0, into: context) }) }
+            group.addTask { await self.pull(type: CKSchema.RecordType.project, upsert: { try upsertProject($0, into: context) }) }
+            group.addTask { await self.pull(type: CKSchema.RecordType.workSession, upsert: { try upsertWorkSession($0, into: context) }) }
         }
     }
 
@@ -229,40 +216,41 @@ final class CloudKitSyncEngine {
 
     private func save(_ records: [CKRecord]) async throws {
         guard !records.isEmpty else { return }
-        let op = CKModifyRecordsOperation(recordsToSave: records, recordIDsToDelete: nil)
-        op.savePolicy = .allKeys // overwrite whole record (idempotent)
-        op.isAtomic = false       // continue on partial errors
-        try await CKSchema.privateDB.modifyRecordsSaving(records, deleting: [])
+        _ = try await CKSchema.privateDB.modifyRecords(
+            saving: records,
+            deleting: [],
+            savePolicy: .allKeys,
+            atomically: false
+        )
     }
 
     // MARK: - Pull helpers
 
-    private func pull(type: String, tokenKey: CKTokenKey, upsert: @escaping (CKRecord) throws -> Void) async {
-        var token = loadToken(tokenKey)
-        while true {
-            let op = CKFetchRecordZoneChangesOperation.recordZoneChangesOperation(
-                recordZoneIDs: [CKRecordZone.default().zoneID],
-                configurationsByRecordZoneID: [:]
-            )
-            // Use database-level "changes since token" (simpler)
-            let q = CKQuery(recordType: type, predicate: NSPredicate(value: true))
-            do {
-                let (match, newToken) = try await CKSchema.privateDB.records(matching: q, inZoneWith: nil, desiredKeys: nil, resultsLimit: CKQueryOperation.maximumResults)
-                for (_, result) in match {
-                    switch result {
-                    case .success(let rec):
-                        try upsert(rec)
-                    case .failure(let err):
-                        print("CK pull \(type) record error:", err)
+    private func pull(type: String, upsert: @escaping (CKRecord) throws -> Void) async {
+        var cursor: CKQueryOperation.Cursor? = nil
+        do {
+            repeat {
+                if let c = cursor {
+                    let (match, next) = try await CKSchema.privateDB.records(continuingMatchFrom: c, desiredKeys: nil, resultsLimit: CKQueryOperation.maximumResults)
+                    for (_, result) in match {
+                        if case let .success(rec) = result {
+                            try upsert(rec)
+                        }
                     }
+                    cursor = next
+                } else {
+                    let q = CKQuery(recordType: type, predicate: NSPredicate(value: true))
+                    let (match, next) = try await CKSchema.privateDB.records(matching: q, inZoneWith: nil, desiredKeys: nil, resultsLimit: CKQueryOperation.maximumResults)
+                    for (_, result) in match {
+                        if case let .success(rec) = result {
+                            try upsert(rec)
+                        }
+                    }
+                    cursor = next
                 }
-                token = newToken // not strictly used with query; kept for future delta APIs
-                saveToken(token, for: tokenKey)
-                break
-            } catch {
-                print("CK pull \(type) error:", error)
-                break
-            }
+            } while cursor != nil
+        } catch {
+            print("CK pull \(type) error:", error)
         }
     }
 }

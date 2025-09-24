@@ -2,16 +2,29 @@
 //  Test
 
 import SwiftUI
-import SwiftData   // ⬅️ add this
+import SwiftData
 
 @main
 struct TestApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .background(BootstrapSync()) // one-time CloudKit pull on launch
         }
-        // ⬇️ attach the shared SwiftData container for your models
         .modelContainer(for: [Project.self, WorkSession.self])
-        // if/when you add Expense later: .modelContainer(for: [Project.self, WorkSession.self, Expense.self])
+    }
+}
+
+/// A lightweight helper view that runs after the SwiftData ModelContext exists.
+/// It performs an initial CloudKit pull to rehydrate local data on fresh installs.
+private struct BootstrapSync: View {
+    @Environment(\.modelContext) private var context
+
+    var body: some View {
+        Color.clear
+            .task {
+                // If you haven't added CloudKitSyncEngine yet, comment this out for now.
+                await CloudKitSyncEngine.shared.pullAll(context: context)
+            }
     }
 }
