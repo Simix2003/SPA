@@ -1,11 +1,27 @@
 import SwiftUI
+import SwiftData
 
 struct HomeView: View {
+    @Environment(\.modelContext) private var context
+    @Query(
+        filter: #Predicate<WorkSession> { $0.end == nil },
+        sort: [SortDescriptor(\.start, order: .reverse)]
+    ) private var openSessions: [WorkSession]
+    @State private var isClosingSession = false
+    @State private var closeErrorMessage: String?
+    @State private var showingCloseError = false
+
+    private var openSession: WorkSession? { openSessions.first }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    
+
+                    if let open = openSession {
+                        activeSessionCard(open)
+                    }
+
                     // Header
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
@@ -86,6 +102,115 @@ struct HomeView: View {
                     Spacer(minLength: 40)
                 }
             }
+        }
+        .alert("Impossibile chiudere la sessione", isPresented: $showingCloseError, actions: {
+            Button("OK", role: .cancel) {
+                showingCloseError = false
+                closeErrorMessage = nil
+            }
+        }, message: {
+            Text(closeErrorMessage ?? "Si è verificato un errore sconosciuto.")
+        })
+    }
+}
+
+private extension HomeView {
+    @ViewBuilder
+    func activeSessionCard(_ session: WorkSession) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Suggerimento intelligente")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.tint)
+                    Text("Sessione aperta")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                }
+
+                Text(openSessionDescription(for: session))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Text(durationText(for: session))
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
+            }
+
+            Button {
+                closeSession(session)
+            } label: {
+                Label("Chiudi ora", systemImage: "stop.circle")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isClosingSession)
+        }
+        .padding()
+        .background(
+            .ultraThinMaterial,
+            in: RoundedRectangle(cornerRadius: 16)
+        )
+        .overlay(
+            LinearGradient(
+                colors: [.blue.opacity(0.25), .purple.opacity(0.2)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+        )
+        .overlay(alignment: .topTrailing) {
+            if isClosingSession {
+                ProgressView()
+                    .controlSize(.small)
+                    .padding(8)
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    func openSessionDescription(for session: WorkSession) -> String {
+        if let name = session.project?.name, !name.isEmpty {
+            return "Hai una sessione attiva per \(name) iniziata alle \(session.start.formatted(date: .omitted, time: .shortened))."
+        }
+        return "Hai una sessione attiva iniziata alle \(session.start.formatted(date: .omitted, time: .shortened))."
+    }
+
+    func durationText(for session: WorkSession) -> String {
+        let minutes = max(0, Int(Date().timeIntervalSince(session.start) / 60))
+        let hours = minutes / 60
+        let mins = minutes % 60
+        return "Durata attuale: \(hours)h \(mins)m"
+    }
+
+    func closeSession(_ session: WorkSession) {
+        guard !isClosingSession else { return }
+        isClosingSession = true
+        defer { isClosingSession = false }
+
+        do {
+            let store = WorkSessionStore(context)
+            try store.stopSession(session)
+            Task { await CloudKitSyncEngine.shared.pushAll(context: context) }
+        } catch let ws as WorkSessionError {
+            switch ws {
+            case .overlapDetected:
+                closeErrorMessage = "Non posso chiudere la sessione perché l'intervallo si sovrappone ad un'altra registrazione."
+            case .noOpenSession:
+                closeErrorMessage = "Non ho trovato sessioni aperte da chiudere."
+            }
+            showingCloseError = true
+        } catch {
+            let ns = error as NSError
+            closeErrorMessage = "Chiusura non riuscita (\(ns.domain) \(ns.code))."
+            showingCloseError = true
         }
     }
 }
