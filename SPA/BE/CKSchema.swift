@@ -254,8 +254,36 @@ final class CloudKitSyncEngine {
 
     private func save(_ records: [CKRecord]) async throws {
         guard !records.isEmpty else { return }
+
+        var prepared: [CKRecord] = []
+        prepared.reserveCapacity(records.count)
+
+        for record in records {
+            do {
+                // Reuse the existing CKRecord if present so we inherit the server change tag.
+                let existing = try await CKSchema.privateDB.record(for: record.recordID)
+                let merged = existing
+                // Ensure keys that were removed locally are cleared remotely as well.
+                let keys = Set(existing.allKeys()).union(record.allKeys())
+                for key in keys {
+                    merged[key] = record[key]
+                }
+                prepared.append(merged)
+            } catch let error as CKError {
+                switch error.code {
+                case .unknownItem:
+                    // Brand new record, push as-is.
+                    prepared.append(record)
+                default:
+                    throw error
+                }
+            }
+        }
+
+        guard !prepared.isEmpty else { return }
+
         _ = try await CKSchema.privateDB.modifyRecords(
-            saving: records,
+            saving: prepared,
             deleting: [],
             savePolicy: .allKeys,
             atomically: false
