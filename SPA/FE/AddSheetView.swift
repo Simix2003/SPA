@@ -76,8 +76,7 @@ struct AddSheetView: View {
                 
                 // Tab 2: Spese
                 ExpensesForm { input in
-                    // TODO: persist with SwiftData when Expense model is ready
-                    onClose()
+                    saveExpense(input)
                 }
                 .tabItem { Label("Spese", systemImage: "creditcard") }
                 .tag(Tab.expenses)
@@ -184,8 +183,47 @@ struct AddSheetView: View {
                 errorMessage = "Salvataggio non riuscito (\(ns.domain) \(ns.code))\n\(ns.localizedDescription)\n\(ns.userInfo)"
             }
         case .expenses:
-            // No-op: ExpensesForm handles its own save internally for now
             break
+        }
+    }
+
+    private func saveExpense(_ input: ExpenseInput) {
+        do {
+            var targetProject: Project?
+            if let name = input.projectName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+                let fd = FetchDescriptor<Project>(predicate: #Predicate { $0.name == name })
+                if let existing = try? context.fetch(fd).first {
+                    targetProject = existing
+                } else {
+                    let project = Project(name: name)
+                    context.insert(project)
+                    targetProject = project
+                }
+                targetProject?.updatedAt = Date()
+            }
+
+            let trimmedNote = input.note.trimmingCharacters(in: .whitespacesAndNewlines)
+            let expense = Expense(
+                amount: input.amount,
+                category: input.category,
+                date: input.date,
+                note: trimmedNote.isEmpty ? nil : trimmedNote,
+                project: targetProject,
+                receiptImageData: input.receiptImageData
+            )
+            expense.createdAt = Date()
+            expense.updatedAt = Date()
+
+            context.insert(expense)
+            try context.save()
+
+            Task { await CloudKitSyncEngine.shared.pushAll(context: context) }
+            dismissKeyboard()
+            onClose()
+        } catch {
+            let ns = error as NSError
+            print("[Expense] save error:", ns)
+            errorMessage = "Salvataggio spesa non riuscito (\(ns.domain) \(ns.code))"
         }
     }
 }

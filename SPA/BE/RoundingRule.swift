@@ -30,6 +30,8 @@ final class Project {
     // Inverse relationship required for CloudKit integration
     @Relationship(inverse: \WorkSession.project)
     var sessions: [WorkSession]?
+    @Relationship(inverse: \Expense.project)
+    var expenses: [Expense]?
 
     init(name: String) {
         self.name = name

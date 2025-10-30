@@ -11,7 +11,7 @@ struct TestApp: App {
             ContentView()
                 .background(BootstrapSync()) // one-time CloudKit pull on launch
         }
-        .modelContainer(for: [Project.self, WorkSession.self])
+        .modelContainer(for: [Project.self, WorkSession.self, Expense.self])
     }
 }
 
