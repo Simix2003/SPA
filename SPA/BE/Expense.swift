@@ -5,12 +5,12 @@ import SwiftData
 final class Expense {
     var id: UUID = UUID()
     var date: Date = Date()
-    var amount: Decimal = .zero
+    var amount: Decimal = Decimal.zero
     var category: String = ""
     var note: String?
     var receiptImageData: Data?
 
-    @Relationship(inverse: \Project.expenses)
+    @Relationship
     var project: Project?
 
     var createdAt: Date = Date()
