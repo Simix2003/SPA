@@ -53,15 +53,18 @@ final class WorkSession {
 
     var rounding: RoundingRule = RoundingRule.off
     var state: SessionState = SessionState.open
+    
+    var sessionType: String = "Ufficio"  // Tipo: Trasferta, Ufficio, etc.
 
     var overrideHourlyRate: Decimal?
 
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
 
-    init(start: Date, project: Project? = nil, rounding: RoundingRule = .off) {
+    init(start: Date, project: Project? = nil, rounding: RoundingRule = .off, sessionType: String = "Ufficio") {
         self.start = start
         self.project = project
         self.rounding = rounding
+        self.sessionType = sessionType
     }
 }

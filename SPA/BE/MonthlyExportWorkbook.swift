@@ -174,34 +174,21 @@ private final class BundleMarker {}
 private extension MonthlyExportWorkbook {
     static func writeSessionsSheet(title: String, sessions: [WorkSession], at url: URL) throws {
         var rows: [[String]] = []
-        rows.append(["Data", "Inizio", "Fine", "Ore", "Commessa", "Note"])
+        rows.append(["Data", "Inizio", "Fine", "Pausa time", "Tipo", "Commessa"])
 
-        var totalMinutes = 0
         for session in sessions {
             let dateString = dateFormatter.string(from: session.start)
             let startString = timeFormatter.string(from: session.start)
             let projectName = session.project?.name ?? "Senza commessa"
             var endString = "—"
-            var durationString = "—"
-            var note = session.note ?? ""
+            let breakTimeString = formatDuration(minutes: session.breakMinutes)
+            let tipo = session.sessionType
+            
             if let end = session.end {
                 endString = timeFormatter.string(from: end)
-                let minutes = Self.payableMinutes(start: session.start, end: end, breakMin: session.breakMinutes, rule: session.rounding)
-                totalMinutes += minutes
-                durationString = formatDuration(minutes: minutes)
-            } else {
-                if note.isEmpty {
-                    note = "Sessione aperta"
-                } else {
-                    note.append(" — Sessione aperta")
-                }
             }
-            rows.append([dateString, startString, endString, durationString, projectName, note])
-        }
-
-        if !sessions.isEmpty {
-            rows.append(Array(repeating: "", count: 6))
-            rows.append(["Totale ore", "", "", formatDuration(minutes: totalMinutes), "", ""])
+            
+            rows.append([dateString, startString, endString, breakTimeString, tipo, projectName])
         }
 
         let xml = worksheetXML(rows: rows)

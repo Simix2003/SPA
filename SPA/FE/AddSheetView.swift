@@ -53,7 +53,7 @@ struct AddSheetView: View {
                                     target = p
                                 }
                             }
-                            _ = try store.switchOpenSession(to: target, rounding: hours.rounding, at: Date())
+                            _ = try store.switchOpenSession(to: target, rounding: hours.rounding, at: Date(), sessionType: hours.type.rawValue)
                             Task { await CloudKitSyncEngine.shared.pushAll(context: context) }
                             dismissKeyboard()
                             onClose()
@@ -152,12 +152,13 @@ struct AddSheetView: View {
                         breakMinutes: hours.breakMin,
                         project: project,
                         note: hours.note.isEmpty ? nil : hours.note,
-                        rounding: hours.rounding
+                        rounding: hours.rounding,
+                        sessionType: hours.type.rawValue
                     )
                     Task { await CloudKitSyncEngine.shared.pushAll(context: context) }
                     dismissKeyboard()
                 } else {
-                    let s = try store.startSession(at: hours.start, project: project, rounding: hours.rounding)
+                    let s = try store.startSession(at: hours.start, project: project, rounding: hours.rounding, sessionType: hours.type.rawValue)
                     s.note = hours.note.isEmpty ? nil : hours.note
                     s.breakMinutes = max(0, hours.breakMin)
                     try context.save()

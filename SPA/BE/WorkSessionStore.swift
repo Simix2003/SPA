@@ -34,27 +34,27 @@ final class WorkSessionStore {
     }
 
     @discardableResult
-    func startSession(project: Project?, rounding: RoundingRule) throws -> WorkSession {
+    func startSession(project: Project?, rounding: RoundingRule, sessionType: String = "Ufficio") throws -> WorkSession {
         if let open = try currentOpenSession() { return open } // idempotent
-        let s = WorkSession(start: Date(), project: project, rounding: rounding)
+        let s = WorkSession(start: Date(), project: project, rounding: rounding, sessionType: sessionType)
         context.insert(s)
         try context.save()
         return s
     }
 
     @discardableResult
-    func startSession(at startDate: Date, project: Project?, rounding: RoundingRule) throws -> WorkSession {
+    func startSession(at startDate: Date, project: Project?, rounding: RoundingRule, sessionType: String = "Ufficio") throws -> WorkSession {
         if let open = try currentOpenSession() { return open } // idempotent safeguard
-        let s = WorkSession(start: startDate, project: project, rounding: rounding)
+        let s = WorkSession(start: startDate, project: project, rounding: rounding, sessionType: sessionType)
         context.insert(s)
         try context.save()
         return s
     }
     
     @discardableResult
-    func createClosedSession(start: Date, end: Date, breakMinutes: Int, project: Project?, note: String?, rounding: RoundingRule) throws -> WorkSession {
+    func createClosedSession(start: Date, end: Date, breakMinutes: Int, project: Project?, note: String?, rounding: RoundingRule, sessionType: String = "Ufficio") throws -> WorkSession {
         try ensureNoOverlap(start: start, end: end, excluding: nil)
-        let s = WorkSession(start: start, project: project, rounding: rounding)
+        let s = WorkSession(start: start, project: project, rounding: rounding, sessionType: sessionType)
         s.end = end
         s.breakMinutes = max(0, breakMinutes)
         s.note = note
@@ -83,11 +83,11 @@ final class WorkSessionStore {
     }
 
     @discardableResult
-    func switchOpenSession(to project: Project?, rounding: RoundingRule, at date: Date = Date()) throws -> WorkSession {
+    func switchOpenSession(to project: Project?, rounding: RoundingRule, at date: Date = Date(), sessionType: String = "Ufficio") throws -> WorkSession {
         if let open = try currentOpenSession() {
             try stopSession(open, at: date)
         }
-        return try startSession(at: date, project: project, rounding: rounding)
+        return try startSession(at: date, project: project, rounding: rounding, sessionType: sessionType)
     }
 
     // Queries
