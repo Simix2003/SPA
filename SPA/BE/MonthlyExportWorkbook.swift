@@ -1,4 +1,5 @@
 import Foundation
+import ZIPFoundation
 
 struct MonthlyExportWorkbook {
     struct Result {
@@ -122,9 +123,7 @@ private extension MonthlyExportWorkbook {
     }
 
     static func extractArchive(at archiveURL: URL, to destinationURL: URL) throws {
-        guard let archive = Archive(url: archiveURL, accessMode: .read) else {
-            throw WorkbookError.templateCorrupted
-        }
+        let archive = try Archive(url: archiveURL, accessMode: .read)
         let fileManager = FileManager.default
         for entry in archive {
             let outputURL = destinationURL.appendingPathComponent(entry.path)
@@ -137,9 +136,7 @@ private extension MonthlyExportWorkbook {
         if FileManager.default.fileExists(atPath: destination.path) {
             try FileManager.default.removeItem(at: destination)
         }
-        guard let archive = Archive(url: destination, accessMode: .create) else {
-            throw WorkbookError.archiveFailed(WorkbookError.templateCorrupted)
-        }
+        let archive = try Archive(url: destination, accessMode: .create)
         guard let enumerator = FileManager.default.enumerator(at: folderURL, includingPropertiesForKeys: [.isDirectoryKey]) else {
             throw WorkbookError.archiveFailed(WorkbookError.templateCorrupted)
         }
@@ -150,7 +147,7 @@ private extension MonthlyExportWorkbook {
                 continue
             }
             let path = String(fileURL.path.dropFirst(basePath.count))
-            try archive.addEntry(with: path, fileURL: fileURL, compressionMethod: .deflate)
+            try archive.addEntry(with: path, fileURL: fileURL, compressionMethod: CompressionMethod.deflate)
         }
     }
 
@@ -189,7 +186,7 @@ private extension MonthlyExportWorkbook {
             var note = session.note ?? ""
             if let end = session.end {
                 endString = timeFormatter.string(from: end)
-                let minutes = payableMinutes(start: session.start, end: end, breakMin: session.breakMinutes, rule: session.rounding)
+                let minutes = Self.payableMinutes(start: session.start, end: end, breakMin: session.breakMinutes, rule: session.rounding)
                 totalMinutes += minutes
                 durationString = formatDuration(minutes: minutes)
             } else {
@@ -316,5 +313,28 @@ private extension MonthlyExportWorkbook {
     static func currencyString(_ value: Decimal) -> String {
         let number = NSDecimalNumber(decimal: value)
         return currencyFormatter.string(from: number) ?? "\(value)"
+    }
+
+    static func payableMinutes(start: Date, end: Date, breakMin: Int, rule: RoundingRule) -> Int {
+        let s = rounded(start, rule: rule)
+        let e = rounded(end, rule: rule)
+        return max(0, Int(e.timeIntervalSince(s)/60) - max(0, breakMin))
+    }
+
+    private static func rounded(_ date: Date, rule: RoundingRule) -> Date {
+        switch rule {
+        case .off: return date
+        case .nearest5:  return date.rounded(to: 5*60)
+        case .nearest15: return date.rounded(to: 15*60)
+        case .nearest30: return date.rounded(to: 30*60)
+        }
+    }
+}
+
+private extension Date {
+    func rounded(to step: TimeInterval) -> Date {
+        let t = timeIntervalSince1970
+        let r = (t / step).rounded() * step
+        return Date(timeIntervalSince1970: r)
     }
 }

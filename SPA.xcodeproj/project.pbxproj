@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		73B08BC92EB4B15500113E78 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 73B08BC82EB4B15500113E78 /* ZIPFoundation */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		73A560F32E7F7C35003AD400 /* SPA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SPA.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -22,13 +26,6 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		73B222402E83590F00F07C9A /* Exceptions for "SPA" folder in "Copy Bundle Resources" phase from "SPA" target */ = {
-			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
-			buildPhase = 73A560F12E7F7C35003AD400 /* Resources */;
-			membershipExceptions = (
-				BE/RoundingHelper.swift,
-			);
-		};
 /* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -36,7 +33,6 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				73B2223F2E83590F00F07C9A /* Exceptions for "SPA" folder in "SPA" target */,
-				73B222402E83590F00F07C9A /* Exceptions for "SPA" folder in "Copy Bundle Resources" phase from "SPA" target */,
 			);
 			path = SPA;
 			sourceTree = "<group>";
@@ -48,6 +44,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				73B08BC92EB4B15500113E78 /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -90,6 +87,7 @@
 			);
 			name = SPA;
 			packageProductDependencies = (
+				73B08BC82EB4B15500113E78 /* ZIPFoundation */,
 			);
 			productName = Test;
 			productReference = 73A560F32E7F7C35003AD400 /* SPA.app */;
@@ -119,6 +117,9 @@
 			);
 			mainGroup = 73A560EA2E7F7C35003AD400;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				73B08BC72EB4B15400113E78 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 73A560F42E7F7C35003AD400 /* Products */;
 			projectDirPath = "";
@@ -392,6 +393,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		73B08BC72EB4B15400113E78 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.20;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		73B08BC82EB4B15500113E78 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 73B08BC72EB4B15400113E78 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 73A560EB2E7F7C35003AD400 /* Project object */;
 }
