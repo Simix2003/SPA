@@ -33,7 +33,8 @@ struct HistoryView: View {
     @State private var errorMessage: String?
     @State private var showExportSheet = false
     @State private var exportTitle = ""
-    @State private var exportText = ""
+    @State private var exportStatus: ExportStatus?
+    @State private var exportWorkbookURL: URL?
 
     var body: some View {
         NavigationStack {
@@ -123,11 +124,21 @@ struct HistoryView: View {
             Text(errorMessage ?? "")
         })
         .sheet(isPresented: $showExportSheet) {
-            ExportPreviewSheet(
-                title: exportTitle,
-                text: exportText,
-                onClose: { showExportSheet = false }
-            )
+            if let status = exportStatus {
+                ExportPreviewSheet(
+                    title: exportTitle,
+                    status: status,
+                    fileURL: exportWorkbookURL,
+                    onClose: {
+                        exportStatus = nil
+                        exportWorkbookURL = nil
+                        showExportSheet = false
+                    }
+                )
+            } else {
+                ProgressView()
+                    .padding()
+            }
         }
     }
 
@@ -253,73 +264,32 @@ struct HistoryView: View {
         let title = monthFormatter.string(from: bounds.lowerBound).capitalized
 
         exportTitle = title
-        exportText = makeMonthlyExportText(title: title, sessions: monthSessions, expenses: monthExpenses)
+        exportWorkbookURL = nil
+        exportStatus = nil
+
+        do {
+            let result = try MonthlyExportWorkbook().makeWorkbook(title: title, sessions: monthSessions, expenses: monthExpenses)
+            exportWorkbookURL = result.fileURL
+            let summary = exportSummary(sessionCount: result.sessionCount, expenseCount: result.expenseCount)
+            exportStatus = .success(message: "Esportazione completata", detail: summary)
+        } catch {
+            exportWorkbookURL = nil
+            let message: String
+            if let localized = error as? LocalizedError, let description = localized.errorDescription {
+                message = description
+            } else {
+                message = error.localizedDescription
+            }
+            exportStatus = .failure(message: "Esportazione non riuscita", detail: message)
+        }
+
         showExportSheet = true
     }
 
-    private func makeMonthlyExportText(title: String, sessions: [WorkSession], expenses: [Expense]) -> String {
-        var lines: [String] = []
-        lines.reserveCapacity(sessions.count + expenses.count + 8)
-
-        let dateFormatter = DateFormatter()
-        dateFormatter.locale = .current
-        dateFormatter.dateFormat = "dd-MM-yyyy"
-        let timeFormatter = DateFormatter()
-        timeFormatter.locale = .current
-        timeFormatter.dateFormat = "HH:mm"
-
-        let currencyFormatter = NumberFormatter()
-        currencyFormatter.locale = .current
-        currencyFormatter.numberStyle = .currency
-
-        lines.append("Report mese \(title)")
-        lines.append("")
-
-        lines.append("Ore")
-        if sessions.isEmpty {
-            lines.append("Nessuna sessione registrata.")
-        } else {
-            var totalMinutes = 0
-            for session in sessions {
-                let dateString = dateFormatter.string(from: session.start)
-                let startString = timeFormatter.string(from: session.start)
-                let projectName = session.project?.name ?? "Senza commessa"
-
-                if let end = session.end {
-                    let endString = timeFormatter.string(from: end)
-                    let minutes = payableMinutes(start: session.start, end: end, breakMin: session.breakMinutes, rule: session.rounding)
-                    totalMinutes += minutes
-                    let durationString = formatHoursForExport(minutes)
-                    lines.append("\(dateString) \(startString) \(endString) \(durationString) \(projectName)")
-                } else {
-                    lines.append("\(dateString) \(startString) — — \(projectName) (aperta)")
-                }
-            }
-            lines.append("Totale ore: \(formatHoursForExport(totalMinutes))")
-        }
-
-        lines.append("")
-        lines.append("Spese")
-        if expenses.isEmpty {
-            lines.append("Nessuna spesa registrata.")
-        } else {
-            var totalAmount = Decimal.zero
-            for expense in expenses {
-                totalAmount += expense.amount
-                let dateString = dateFormatter.string(from: expense.date)
-                let amountString = currencyString(expense.amount, formatter: currencyFormatter)
-                let projectName = expense.project?.name ?? "Senza commessa"
-                var line = "\(dateString) \(amountString) \(expense.category) \(projectName)"
-                if let note = expense.note, !note.isEmpty {
-                    line.append(" - \(note)")
-                }
-                lines.append(line)
-            }
-            let totalString = currencyString(totalAmount, formatter: currencyFormatter)
-            lines.append("Totale spese: \(totalString)")
-        }
-
-        return lines.joined(separator: "\n")
+    private func exportSummary(sessionCount: Int, expenseCount: Int) -> String {
+        let sessionText = sessionCount == 1 ? "1 sessione" : "\(sessionCount) sessioni"
+        let expenseText = expenseCount == 1 ? "1 spesa" : "\(expenseCount) spese"
+        return "\(sessionText) • \(expenseText)"
     }
 
     private func monthBounds(for date: Date = Date()) -> ClosedRange<Date> {
@@ -328,16 +298,6 @@ struct HistoryView: View {
         let start = cal.date(from: comps) ?? date
         let end = cal.date(byAdding: DateComponents(month: 1, second: -1), to: start) ?? date
         return start...end
-    }
-
-    private func formatHoursForExport(_ minutes: Int) -> String {
-        let hours = minutes / 60
-        let mins = minutes % 60
-        return String(format: "%02d:%02d", hours, mins)
-    }
-
-    private func currencyString(_ amount: Decimal, formatter: NumberFormatter) -> String {
-        formatter.string(from: NSDecimalNumber(decimal: amount)) ?? "\(amount)"
     }
 
     // MARK: - Helpers: grouping, totals, formatting
@@ -480,46 +440,93 @@ private struct EditSessionSheet: View {
     }
 }
 
-// MARK: - ExportPreviewSheet
+// MARK: - Export preview helpers
+private enum ExportStatus {
+    case success(message: String, detail: String?)
+    case failure(message: String, detail: String?)
+
+    var message: String {
+        switch self {
+        case .success(let message, _), .failure(let message, _):
+            return message
+        }
+    }
+
+    var detail: String? {
+        switch self {
+        case .success(_, let detail), .failure(_, let detail):
+            return detail
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .success:
+            return "checkmark.circle.fill"
+        case .failure:
+            return "xmark.octagon.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .success:
+            return .green
+        case .failure:
+            return .red
+        }
+    }
+
+    var isSuccess: Bool {
+        if case .success = self { return true }
+        return false
+    }
+}
+
 private struct ExportPreviewSheet: View {
     let title: String
-    let text: String
+    let status: ExportStatus
+    let fileURL: URL?
     let onClose: () -> Void
-
-    @State private var copied = false
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                ScrollView {
-                    Text(text.isEmpty ? "Nessun dato disponibile per questo mese." : text)
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
-                }
+            VStack(alignment: .leading, spacing: 24) {
+                statusHeader
 
-                HStack {
-                    ShareLink(item: text.isEmpty ? "" : text) {
-                        Label("Condividi", systemImage: "square.and.arrow.up")
-                    }
-                    .disabled(text.isEmpty)
+                if status.isSuccess, let url = fileURL {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label(url.lastPathComponent, systemImage: "doc")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
 
-                    Spacer()
-
-                    Button {
-                        copyToPasteboard(text)
-                        withAnimation(.spring(duration: 0.3)) { copied = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-                            withAnimation(.spring(duration: 0.3)) { copied = false }
+                        ShareLink(
+                            item: url,
+                            subject: Text("Report \(title)"),
+                            message: Text("In allegato il workbook per \(title)."),
+                            preview: SharePreview(Text(title), image: Image(systemName: "tablecells"))
+                        ) {
+                            Label("Condividi workbook", systemImage: "square.and.arrow.up")
+                                .frame(maxWidth: .infinity)
                         }
-                    } label: {
-                        Label(copied ? "Copiato" : "Copia", systemImage: copied ? "checkmark.circle.fill" : "doc.on.doc")
+                        .buttonStyle(.borderedProminent)
+                        .tint(status.tint)
                     }
-                    .disabled(text.isEmpty)
+
+                    Text("Scegli Mail per allegare subito il file e spedirlo al cliente.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Chiudi e riprova l'esportazione se il problema persiste.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-                .padding([.horizontal, .bottom])
+
+                Spacer()
             }
+            .padding()
             .navigationTitle(title)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -529,10 +536,26 @@ private struct ExportPreviewSheet: View {
         }
     }
 
-    private func copyToPasteboard(_ value: String) {
-        #if canImport(UIKit)
-        UIPasteboard.general.string = value.isEmpty ? nil : value
-        #endif
+    private var statusHeader: some View {
+        HStack(spacing: 12) {
+            Image(systemName: status.iconName)
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(12)
+                .background(status.tint, in: Circle())
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(status.message)
+                    .font(.title3)
+                    .fontWeight(.semibold)
+
+                if let detail = status.detail {
+                    Text(detail)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
     }
 }
 
